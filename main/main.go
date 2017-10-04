@@ -17,13 +17,13 @@ const (
 /**
 获取DB连接
  */
-func InItOrm() (b2DB b2db.Model) {
+func InItOrm() (b2DB b2db.B2db) {
 		db,err:=sql.Open("mysql",Username+":"+PassWord+"@tcp(localhost:3306)/"+dbname+"?charset=utf8")
 		if err!=nil {
 			log.Println(err)
 			log.Println("db初始化为空")
 		}else {
-			b2DB = b2db.New(db)
+			b2DB = b2db.New(db,"")
 		}
 	return
 }
@@ -81,8 +81,8 @@ type Userinfo struct {
 func main() {
 	orm:= InItOrm()
 	b2db.OnDebug = true
-	orm.Begin()//开启事物
-	orm.Commit()//提交事物
+	//orm.Begin()//开启事物
+	//orm.Commit()//提交事物
 
 
 
@@ -137,7 +137,7 @@ func main() {
 	//findOneToOne:=findOneToOne(orm)
 	//log.Println(findOneToOne)
 	//class:=FindOneToMore(orm)
-	//log.Println(class)
+	//log.Println(class.Students)
 	//class:=FindMoreToMore(orm)
 	//log.Println(class[0].Name,class[1].Name)
 	//log.Println(len(class[1].Students))
@@ -162,7 +162,7 @@ func main() {
 	 */
 	//jointable(orm)
 }
-func insert(orm b2db.Model) {
+func insert(orm b2db.B2db) {
 	var student Student
 	//student.SId=42
 	student.Name = time.Now().String()[0:10]
@@ -172,16 +172,16 @@ func insert(orm b2db.Model) {
 	log.Println(err)
 	log.Println(student)
 }
-func insertsql(orm b2db.Model) {
+func insertsql(orm b2db.B2db) {
 	add := make(map[string]interface{})
 	add["name"] = "cloud develop"
-	add["password"] = "2012-12-02"
+	add["password"] = "2013-12-02"
 	add["classId"] = "2"
 	in,err:=orm.SetTable("student").Insert(add)
 	log.Println(in)
 	log.Println(err)
 }
-func insertbatch(orm b2db.Model) {
+func insertbatch(orm b2db.B2db) {
 	rows := make([]map[string]interface{}, 5)
 	for i := 0; i < 5; i++ {
 		add := make(map[string]interface{})
@@ -196,7 +196,7 @@ func insertbatch(orm b2db.Model) {
 	log.Println(in)
 	log.Println(err)
 }
-func delete(orm b2db.Model) {
+func delete(orm b2db.B2db) {
 	// // //delete one data
 	saveone := selectone(orm)
 	log.Println(saveone)
@@ -204,11 +204,11 @@ func delete(orm b2db.Model) {
 	log.Println(in)
 	log.Println(err)
 }
-func deletesql(orm b2db.Model) {
+func deletesql(orm b2db.B2db) {
 	//original SQL delete
 	orm.SetTable("userinfo").Where("uid=?", 30).DeleteRow()
 }
-func deleteall(orm b2db.Model) {
+func deleteall(orm b2db.B2db) {
 	// //delete all data
 	allstu := selectall(orm)
 	log.Println(allstu)
@@ -216,7 +216,7 @@ func deleteall(orm b2db.Model) {
 	log.Println(in)
 	log.Println(err)
 }
-func update(orm b2db.Model) {
+func update(orm b2db.B2db) {
 	var student Student
 	student.SId=56
 	student.Name = time.Now().String()[0:10]
@@ -226,25 +226,25 @@ func update(orm b2db.Model) {
 	log.Println(err)
 	log.Println(student)
 }
-func updatesql(orm b2db.Model) {
+func updatesql(orm b2db.B2db) {
 	t := make(map[string]interface{})
 	t["username"] = "yangp"
 	in,_:=orm.SetTable("userinfo").SetPK("uid").Where(2).Update(t)
 	log.Println(in)
 }
-func selectone(orm b2db.Model) Student {
+func selectone(orm b2db.B2db) Student {
 	var student Student
-	student.SId=55
-	err:=orm.FindOne(&student)
-	log.Println(err)
+	student.SId=56
+	orm.FindOne(&student)
+	//log.Println(err)
 	return student
 }
-func selectall(orm b2db.Model) []Student {
+func selectall(orm b2db.B2db) []Student {
 	var allStudent []Student
 	orm.Limit(2).Where("Id>30", ).FindAll(&allStudent)
 	return allStudent
 }
-func findmap(orm b2db.Model) {
+func findmap(orm b2db.B2db) {
 	//Original SQL Backinfo resultsSlice []map[string][]byte
 	//default PrimaryKey id
 	c, _ := orm.
@@ -255,7 +255,7 @@ func findmap(orm b2db.Model) {
 		FindMap()
 	fmt.Println(c)
 }
-func findOneToOne(orm b2db.Model) Student {
+func findOneToOne(orm b2db.B2db) Student {
 	var student Student
 	student.SId=36
 	////orm.SetTable("class,student").Where(" student.Id=? AND class.Id=student.classId",41).Find(student)
@@ -263,26 +263,26 @@ func findOneToOne(orm b2db.Model) Student {
 	//orm.SetTable("student").Join("LEFT","class","class.Id=student.classId").Where("class.Id=?",1).FindMap()
 	return student
 }
-func FindOneToMore(orm b2db.Model) Class {
+func FindOneToMore(orm b2db.B2db) Class {
 	var class Class
 	class.Id=1
 	orm.FindOneToMore(&class)
 	log.Println(len(class.Students))
 	return class
 }
-func FindMoreToMore(orm b2db.Model) []Class {
+func FindMoreToMore(orm b2db.B2db) []Class {
 	var class []Class
 	////orm.SetTable("class,student").Where(" student.Id=? AND class.Id=student.classId",41).Find(student)
 	orm.Where("class.Id>0").FindMoreToMore(&class)
 	//orm.SetTable("student").Join("LEFT","class","class.Id=student.classId").Where("class.Id=?",1).FindMap()
 	return class
 }
-func groupby(orm b2db.Model) {
+func groupby(orm b2db.B2db) {
 	//Original SQL Group By
 	b, _ := orm.SetTable("student").GroupBy("name").Having("name='123'").FindMap()
 	fmt.Println(b)
 }
-func jointable(orm b2db.Model) {
+func jointable(orm b2db.B2db) {
 	//Original SQL Join Table
 	a, _ := orm.SetTable("userinfo").Join("LEFT", "userdeatail", "userinfo.uid=userdeatail.uid").Where("userinfo.uid=?", 10).Select("userinfo.uid,userinfo.username,userdeatail.profile").FindMap()
 	fmt.Println(a)

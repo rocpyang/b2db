@@ -2,6 +2,8 @@ package b2db
 
 import (
 	"testing"
+	"reflect"
+	"errors"
 )
 
 type User struct {
@@ -38,3 +40,4 @@ func TestMapToStruct(t *testing.T) {
 		t.Errorf(err.Error())
 	}
 }
+

@@ -10,11 +10,42 @@ import (
 "log"
 )
 
-var OnDebug = false
-//var PluralizeTableNames = false
-var beginsession=false//开启事物
+type B2db interface {
+	SetTable(tbname string) B2db
+	SetPK(pk string) B2db
+	Where(querystring interface{}, args ...interface{}) B2db
+	Limit(start int, size ...int) B2db
+	Select(colums string) B2db
+	Offset(offset int) B2db
+	OrderBy(order string) B2db
+	Join(join_operator, tablename, condition string) B2db
+	GroupBy(keys string) B2db
+	Having(conditions string) B2db
+	FindOne(output interface{}) error
+	FindAll(rowsSlicePtr interface{}) error
+	FindMap() (resultsSlice []map[string][]byte, err error)
+	FindOneToOne(output interface{}) error
+	FindOneToMore(output interface{}) error
+	FindMoreToMore(slice interface{}) error
+	generateSql()  string
+	Exec(finalQueryString string, args ...interface{}) (sql.Result, error)
+	Save(output interface{}) error
+	Insert(properties map[string]interface{}) (int64, error)
+	InsertBatch(rows []map[string]interface{}) ([]int64, error)
+	Update(properties map[string]interface{}) (int64, error)
+	Delete(output interface{}) (int64, error)
+	DeleteAll(rowsSlicePtr interface{}) (int64, error)
+	DeleteRow() (int64, error)
+	Begin()  error
+	Commit() error
+	Rollback() error
+	InitModel()
+	OnDebug(bol bool)
+}
 
-type Model struct {
+
+var 	OnDebug =false
+type model struct {
 	Tx				*sql.Tx
 	Db              *sql.DB
 	TableName       string
@@ -31,33 +62,36 @@ type Model struct {
 	QuoteIdentifier string
 	ParamIdentifier string
 	ParamIteration  int
+	beginsession bool//开启事物
+
 }
 
 /**
  * Add New sql.DB in the future i will add ConnectionPool.Get()
  */
-func New(db *sql.DB, options ...interface{}) (m Model) {
+func New(db *sql.DB, options string) B2db {
+	var m model
 	if len(options) == 0 {
-		m = Model{Db: db, ColumnStr: "*", PrimaryKey: "Id", QuoteIdentifier: "`", ParamIdentifier: "?", ParamIteration: 1}
-	} else if options[0] == "pg" {
-		m = Model{Db: db, ColumnStr: "id", PrimaryKey: "Id", QuoteIdentifier: "\"", ParamIdentifier: options[0].(string), ParamIteration: 1}
-	} else if options[0] == "mssql" {
-		m = Model{Db: db, ColumnStr: "id", PrimaryKey: "id", QuoteIdentifier: "", ParamIdentifier: options[0].(string), ParamIteration: 1}
+		m = model{Db: db, ColumnStr: "*", PrimaryKey: "Id", QuoteIdentifier: "`", ParamIdentifier: "?", ParamIteration: 1}
+	} else if options == "pg" {
+		m = model{Db: db, ColumnStr: "id", PrimaryKey: "Id", QuoteIdentifier: "\"", ParamIdentifier: options, ParamIteration: 1}
+	} else if options == "mssql" {
+		m = model{Db: db, ColumnStr: "id", PrimaryKey: "id", QuoteIdentifier: "", ParamIdentifier: options, ParamIteration: 1}
 	}
-	return
+	return &m
 }
 
-func (orm *Model) SetTable(tbname string) *Model {
+func (orm *model) SetTable(tbname string) B2db {
 	orm.TableName = tbname
 	return orm
 }
 
-func (orm *Model) SetPK(pk string) *Model {
+func (orm *model) SetPK(pk string) B2db {
 	orm.PrimaryKey = pk
 	return orm
 }
 
-func (orm *Model) Where(querystring interface{}, args ...interface{}) *Model {
+func (orm *model) Where(querystring interface{}, args ...interface{}) B2db {
 	switch querystring := querystring.(type) {
 	case string:
 		orm.WhereStr = querystring
@@ -74,7 +108,7 @@ func (orm *Model) Where(querystring interface{}, args ...interface{}) *Model {
 	return orm
 }
 
-func (orm *Model) Limit(start int, size ...int) *Model {
+func (orm *model) Limit(start int, size ...int) B2db {
 	orm.LimitStr = start
 	if len(size) > 0 {
 		orm.OffsetStr = size[0]
@@ -82,44 +116,23 @@ func (orm *Model) Limit(start int, size ...int) *Model {
 	return orm
 }
 
-func (orm *Model) Offset(offset int) *Model {
+func (orm *model) Offset(offset int) B2db {
 	orm.OffsetStr = offset
 	return orm
 }
 
-func (orm *Model) OrderBy(order string) *Model {
+func (orm *model) OrderBy(order string) B2db {
 	orm.OrderStr = order
 	return orm
 }
 
-func (orm *Model) Select(colums string) *Model {
+func (orm *model) Select(colums string) B2db {
 	orm.ColumnStr = colums
 	return orm
 }
 
-func (orm *Model) ScanPK(output interface{}) *Model {
-	if reflect.TypeOf(reflect.Indirect(reflect.ValueOf(output)).Interface()).Kind() == reflect.Slice {
-		sliceValue := reflect.Indirect(reflect.ValueOf(output))
-		sliceElementType := sliceValue.Type().Elem()
-		for i := 0; i < sliceElementType.NumField(); i++ {
-			bb := sliceElementType.Field(i).Tag
-			if bb.Get("b2db") == "PK" || reflect.ValueOf(bb).String() == "PK" {
-				orm.PrimaryKey = sliceElementType.Field(i).Name
-			}
-		}
-	} else {
-		tt := reflect.TypeOf(reflect.Indirect(reflect.ValueOf(output)).Interface())
-		for i := 0; i < tt.NumField(); i++ {
-			bb := tt.Field(i).Tag
-			if bb.Get("b2db") == "PK" || reflect.ValueOf(bb).String() == "PK" {
-				orm.PrimaryKey = tt.Field(i).Name
-			}
-		}
-	}
-	return orm
-}
 //The join_operator should be one of INNER, LEFT OUTER, CROSS etc - this will be prepended to JOIN
-func (orm *Model) Join(join_operator, tablename, condition string) *Model {
+func (orm *model) Join(join_operator, tablename, condition string) B2db {
 	if orm.JoinStr != "" {
 		orm.JoinStr = orm.JoinStr + fmt.Sprintf(" %v JOIN %v ON %v", join_operator, tablename, condition)
 	} else {
@@ -129,36 +142,35 @@ func (orm *Model) Join(join_operator, tablename, condition string) *Model {
 	return orm
 }
 
-func (orm *Model) GroupBy(keys string) *Model {
+func (orm *model) GroupBy(keys string) B2db {
 	orm.GroupByStr = fmt.Sprintf("GROUP BY %v", keys)
 	return orm
 }
 
-func (orm *Model) Having(conditions string) *Model {
+func (orm *model) Having(conditions string) B2db {
 	orm.HavingStr = fmt.Sprintf("HAVING %v", conditions)
 	return orm
 }
 
-func (orm *Model) FindOne(output interface{}) error {
-	orm.ScanPK(output)
-	var keys []string
-	selMapp, err := scanSelfStructIntoMap(output)
-	log.Println("selMapp",selMapp)
+func (orm *model) FindOne(output interface{}) error {
+	selectStruct, err := scanStruct(output)
 	if err != nil {
 		return err
 	}
+	selMap:=selectStruct.selOneMap
+	orm.PrimaryKey=selectStruct.pkFieldName
 	if orm.WhereStr=="" {
-		myref:=reflect.ValueOf(output).Elem()
-		field := myref.FieldByName(orm.PrimaryKey)
-		tableName,column:=getTableNameAndPKcolumn(output)
-		orm.Where(tableName+"."+column+"=?",field.Interface())
+		tableName:=selectStruct.tableName
+		column:=selectStruct.pkcolumn
+		orm.Where(tableName+"."+column+"=?",selectStruct.pkPram)
 	}
 	if orm.TableName == "" {//获取查询的表名
-		orm.TableName,_ = getobjTableName(output)
+		orm.TableName= selectStruct.tableName
 	}
 	// If we've already specific columns with Select(), use that
+	var keys []string
 	if orm.ColumnStr == "*" {//查询的字段
-		for key, _ := range selMapp {//如果查询的字符串之前没有定义就用查询的map
+		for key, _ := range selMap {//如果查询的字符串之前没有定义就用查询的map
 			keys = append(keys, key)
 		}
 		orm.ColumnStr = strings.Join(keys, ", ")
@@ -181,22 +193,22 @@ func (orm *Model) FindOne(output interface{}) error {
 	return nil
 }
 
-func (orm *Model) FindAll(rowsSlicePtr interface{}) error {
-	orm.ScanPK(rowsSlicePtr)
+func (orm *model) FindAll(rowsSlicePtr interface{}) error {
 	sliceValue := reflect.Indirect(reflect.ValueOf(rowsSlicePtr))
 	if sliceValue.Kind() != reflect.Slice {
 		return errors.New("needs a pointer to a slice")
 	}
-
 	sliceElementType := sliceValue.Type().Elem()
 	st := reflect.New(sliceElementType)
 	var keys []string
-	results, err := scanSelfStructIntoMap(st.Interface())
+	selectStruct, err := scanStruct(st.Interface())
 	if err != nil {
 		return err
 	}
+	orm.PrimaryKey=selectStruct.pkFieldName
+	results:=selectStruct.selOneMap
 	if orm.TableName == "" {
-		orm.TableName,_ = getobjTableName(st.Interface())
+		orm.TableName= selectStruct.tableName
 	}
 	// If we've already specific columns with Select(), use that
 	if orm.ColumnStr == "*" {
@@ -221,12 +233,11 @@ func (orm *Model) FindAll(rowsSlicePtr interface{}) error {
 	return nil
 }
 
-func (orm *Model) FindMap() (resultsSlice []map[string][]byte, err error) {
+func (orm *model) FindMap() (resultsSlice []map[string][]byte, err error) {
 	defer orm.InitModel()
 	sqls := orm.generateSql()
 	if OnDebug {
 		fmt.Println(sqls)
-		fmt.Println(orm)
 	}
 	s, err := orm.Db.Prepare(sqls)
 	if err != nil {
@@ -295,30 +306,30 @@ func (orm *Model) FindMap() (resultsSlice []map[string][]byte, err error) {
 	}
 	return resultsSlice, nil
 }
-func (orm *Model) FindOneToOne(output interface{}) error {
-	orm.ScanPK(output)
-	var keys []string
-	selMapp, err := scanStructIntoMap(output)
-	log.Println("selMapp",selMapp)
+func (orm *model) FindOneToOne(output interface{}) error {
+	selectStruct, err := scanStruct(output)
 	if err != nil {
 		return err
 	}
+	selMap:=selectStruct.selAllMap
+	log.Println("selMapp",selMap)
+	orm.PrimaryKey=selectStruct.pkFieldName
 	if orm.TableName == "" {//获取查询的表名
-		orm.TableName = getTableName(output)
+		orm.TableName = selectStruct.oneToOneTable
 	}
 	// If we've already specific columns with Select(), use that
+	var keys []string
 	if orm.ColumnStr == "*" {//查询的字段
-		for key, _ := range selMapp {//如果查询的字符串之前没有定义就用查询的map
+		for key, _ := range selMap {//如果查询的字符串之前没有定义就用查询的map
 			keys = append(keys, key)
 		}
 		orm.ColumnStr = strings.Join(keys, ", ")
 	}
 	if orm.WhereStr=="" {
-		myref:=reflect.ValueOf(output).Elem()
-		field := myref.FieldByName(orm.PrimaryKey)
-		term:=getOneToOneConnTerm(output)
-		tableName,column:=getTableNameAndPKcolumn(output)
-		orm.Where(term+" AND "+tableName+"."+column+"=?",field.Interface())
+		//term:=getOneToOneConnTerm(output)
+		tableName:=selectStruct.tableName
+		column:=selectStruct.pkcolumn
+		orm.Where(selectStruct.OneToOneConnTerm+" AND "+tableName+"."+column+"=?",selectStruct.pkPram)
 	}
 	//orm.Limit(1)
 	resultsSlice, err := orm.FindMap()
@@ -339,33 +350,31 @@ func (orm *Model) FindOneToOne(output interface{}) error {
 	}
 	return nil
 }
-func (orm *Model) FindOneToMore(output interface{}) error {
-	orm.ScanPK(output)
-	var keys []string
-	selMapp, err := scanStructIntoMap(output)
+func (orm *model) FindOneToMore(output interface{}) error {
+	selectStruct, err := scanStruct(output)
 	if err != nil {
 		return err
 	}
-	one_objTable,_:=getobjTableName(output)//获取，一方的表
+	selMap:=selectStruct.selAllMap
+	log.Println("selMapp",selMap)
+	orm.PrimaryKey=selectStruct.pkFieldName
+	one_objTable:=selectStruct.tableName//获取，一方的表
 	if orm.TableName == "" {//获取查询的表名
 		orm.TableName = one_objTable
 	}
 	// If we've already specific columns with Select(), use that
+	var keys []string
 	if orm.ColumnStr == "*" {//查询的字段
-		for key, _ := range selMapp {//如果查询的字符串之前没有定义就用查询的map
+		for key, _ := range selMap {//如果查询的字符串之前没有定义就用查询的map
 			keys = append(keys, key)
 		}
 		orm.ColumnStr = strings.Join(keys, ", ")
 	}
 	if orm.WhereStr=="" {
-		myref:=reflect.ValueOf(output).Elem()
-		field := myref.FieldByName(orm.PrimaryKey)
-		tableName,column:=getTableNameAndPKcolumn(output)
-		orm.Where(tableName+"."+column+"=?",field.Interface())
+		orm.Where(selectStruct.tableName+"."+selectStruct.pkcolumn+"=?",selectStruct.pkPram)
 	}
 	if orm.JoinStr=="" {
-		term,moreTable:=getOneToMoreConnTerm(output)//获取两表的连接关系
-		orm.Join("LEFT",moreTable,term)
+		orm.Join("LEFT",selectStruct.moreTable,selectStruct.OneToMoreConnTerm)
 	}
 	resultsSlice, err := orm.FindMap()
 	if err != nil {
@@ -374,49 +383,46 @@ func (orm *Model) FindOneToMore(output interface{}) error {
 	if len(resultsSlice) == 0 {
 		return errors.New("No record found")
 	} else  {
-		pKFieldMap,er:= getOnePKAndMoreFieldName(output)
-		if er!=nil {
-			return er
-		}
-		err := scanMapIntoOneToMore(output, resultsSlice,pKFieldMap)
+		err := scanMapIntoOneToMore(output, resultsSlice,selectStruct.pKFieldMap)
 		if err != nil {
 			return err
 		}
 	}
 	return nil
 }
-func (orm *Model) FindMoreToMore(slice interface{}) error {
+func (orm *model) FindMoreToMore(slice interface{}) error {
 	sliceValue := reflect.Indirect(reflect.ValueOf(slice))
 	if sliceValue.Kind() != reflect.Slice {
 		return errors.New("使用切面来查询")
 	}
 	obj:=reflect.New(sliceValue.Type().Elem()).Interface()
-	orm.ScanPK(obj)
 	var keys []string
-	selMapp, err := scanStructIntoMap(obj)
+	selectStruct, err := scanStruct(obj)
 	if err != nil {
 		return err
 	}
-	one_objTable,_:=getobjTableName(obj)//获取，一方的表
+	selMap:=selectStruct.selAllMap
+	log.Println("selMapp",selMap)
+	orm.PrimaryKey=selectStruct.pkFieldName
+	if err != nil {
+		return err
+	}
+	one_objTable:=selectStruct.tableName//获取，一方的表
 	if orm.TableName == "" {//获取查询的表名
 		orm.TableName = one_objTable
 	}
 	// If we've already specific columns with Select(), use that
 	if orm.ColumnStr == "*" {//查询的字段
-		for key, _ := range selMapp {//如果查询的字符串之前没有定义就用查询的map
+		for key, _ := range selMap {//如果查询的字符串之前没有定义就用查询的map
 			keys = append(keys, key)
 		}
 		orm.ColumnStr = strings.Join(keys, ", ")
 	}
 	if orm.WhereStr=="" {
-		myref:=reflect.ValueOf(obj).Elem()
-		field := myref.FieldByName(orm.PrimaryKey)
-		tableName,column:=getTableNameAndPKcolumn(obj)
-		orm.Where(tableName+"."+column+"=?",field.Interface())
+		orm.Where(selectStruct.tableName+"."+selectStruct.pkcolumn+"=?",selectStruct.pkPram)
 	}
 	if orm.JoinStr=="" {
-		term,moreTable:=getOneToMoreConnTerm(obj)//获取两表的连接关系
-		orm.Join("LEFT",moreTable,term)
+		orm.Join("LEFT",selectStruct.moreTable,selectStruct.OneToMoreConnTerm)
 	}
 	resultsSlice, err := orm.FindMap()
 	if err != nil {
@@ -425,18 +431,14 @@ func (orm *Model) FindMoreToMore(slice interface{}) error {
 	if len(resultsSlice) == 0 {
 		return errors.New("No record found")
 	} else  {
-		pKFieldMap,er:= getOnePKAndMoreFieldName(obj)
-		if er!=nil {
-			return er
-		}
-		err := scanMapIntoOneToMore(slice, resultsSlice,pKFieldMap)
+		err := scanMapIntoOneToMore(slice, resultsSlice,selectStruct.pKFieldMap)
 		if err != nil {
 			return err
 		}
 	}
 	return nil
 }
-func (orm *Model) generateSql() (a string) {
+func (orm *model) generateSql() (a string) {
 	if orm.ParamIdentifier == "mssql" {
 		if orm.OffsetStr > 0 {
 			a = fmt.Sprintf("select ROW_NUMBER() OVER(order by %v )as rownum,%v from %v",
@@ -509,10 +511,10 @@ func (orm *Model) generateSql() (a string) {
 //Execute sql
 //2017-09-15如果开启事物就使用Tx对数据库操作，
 //2017-09-15如果未开始事物使用原方法操作
-func (orm *Model) Exec(finalQueryString string, args ...interface{}) (sql.Result, error) {
+func (orm *model) Exec(finalQueryString string, args ...interface{}) (sql.Result, error) {
 	var err error
 	var rs *sql.Stmt
-	if beginsession{
+	if orm.beginsession{
 		rs, err =orm.Tx.Prepare(finalQueryString)
 	}else {
 		rs, err = orm.Db.Prepare(finalQueryString)
@@ -529,18 +531,20 @@ func (orm *Model) Exec(finalQueryString string, args ...interface{}) (sql.Result
 }
 
 //if the struct has PrimaryKey == 0 insert else update
-func (orm *Model) Save(output interface{}) error {
+func (orm *model) Save(output interface{}) error {
+	selectStruct, err := scanStruct(output)
 	//获取主键所在的列
-	columnPK,fieldName:=getPKColumn(output)
+	columnPK:=selectStruct.pkcolumn
+	fieldName:=selectStruct.pkFieldName
 	orm.PrimaryKey=columnPK
-	results, err := scanSelfColumnIntoMap(output)
+	results,err := scanSelfColumn(output)
 	log.Println("results",results)
 	log.Println("orm",orm)
 	if err != nil {
 		return err
 	}
 	if orm.TableName == "" {
-		orm.TableName,_= getobjTableName(output)
+		orm.TableName= selectStruct.tableName
 	}
 	id := results[orm.PrimaryKey]
 	if id == nil {
@@ -548,13 +552,9 @@ func (orm *Model) Save(output interface{}) error {
 	}
 	switch reflect.ValueOf(id).Type().Kind(){
 	case reflect.String:
-		idcolumn:=""
+		idcolumn:=selectStruct.pkcolumn
 		if orm.WhereStr=="" {
-			myref:=reflect.ValueOf(output).Elem()
-			field := myref.FieldByName(fieldName)
-			tableName,column:=getTableNameAndPKcolumn(output)
-			idcolumn=column
-			orm.Where(tableName+"."+column+"=?",field.Interface())
+			orm.Where(selectStruct.tableName+"."+selectStruct.pkcolumn+"=?",selectStruct.pkPram)
 		}
 		paramStr:=orm.ParamStr
 		wherestr:=orm.WhereStr
@@ -601,7 +601,8 @@ func (orm *Model) Save(output interface{}) error {
 
 		break
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32:
-		tableName,column:=getTableNameAndPKcolumn(output)
+		tableName:=selectStruct.tableName
+		column:=selectStruct.pkcolumn
 		delete(results, column)
 		if reflect.ValueOf(id).Int() == 0 {//插入
 			structPtr := reflect.ValueOf(output)
@@ -660,7 +661,7 @@ func (orm *Model) Save(output interface{}) error {
 }
 
 //inert one info
-func (orm *Model) Insert(properties map[string]interface{}) (int64, error) {
+func (orm *model) Insert(properties map[string]interface{}) (int64, error) {
 	defer orm.InitModel()
 	var keys []string
 	var placeholders []string
@@ -692,7 +693,7 @@ func (orm *Model) Insert(properties map[string]interface{}) (int64, error) {
 	if orm.ParamIdentifier == "pg" {
 		statement = fmt.Sprintf("%v RETURNING %v", statement, snakeCasedName(orm.PrimaryKey))
 		var id int64
-		if beginsession{
+		if orm.beginsession{
 			orm.Tx.QueryRow(statement,args...).Scan(&id)
 		}else {
 			orm.Db.QueryRow(statement, args...).Scan(&id)
@@ -715,7 +716,7 @@ func (orm *Model) Insert(properties map[string]interface{}) (int64, error) {
 }
 
 //insert batch info
-func (orm *Model) InsertBatch(rows []map[string]interface{}) ([]int64, error) {
+func (orm *model) InsertBatch(rows []map[string]interface{}) ([]int64, error) {
 	var ids []int64
 	tablename := orm.TableName
 	if len(rows) <= 0 {
@@ -734,7 +735,7 @@ func (orm *Model) InsertBatch(rows []map[string]interface{}) ([]int64, error) {
 }
 
 // update info
-func (orm *Model) Update(properties map[string]interface{}) (int64, error) {
+func (orm *model) Update(properties map[string]interface{}) (int64, error) {
 	defer orm.InitModel()
 	var updates []string
 	var args []interface{}
@@ -784,13 +785,18 @@ func (orm *Model) Update(properties map[string]interface{}) (int64, error) {
 	return id, nil
 }
 
-func (orm *Model) Delete(output interface{}) (int64, error) {
+func (orm *model) Delete(output interface{}) (int64, error) {
 	defer orm.InitModel()
-	results, err := scanSelfColumnIntoMap(output)
+	results, err := scanSelfColumn(output)
 	if err != nil {
 		return 0, err
 	}
-	tableName,PKcolumn:=getTableNameAndPKcolumn(output)
+	selectStruct, err := scanStruct(output)
+	if err != nil {
+		return 0, err
+	}
+	tableName:=selectStruct.tableName
+	PKcolumn:=selectStruct.pkcolumn
 	if orm.TableName == "" {
 		orm.TableName = tableName
 	}
@@ -817,7 +823,7 @@ func (orm *Model) Delete(output interface{}) (int64, error) {
 	return Affectid, nil
 }
 
-func (orm *Model) DeleteAll(rowsSlicePtr interface{}) (int64, error) {
+func (orm *model) DeleteAll(rowsSlicePtr interface{}) (int64, error) {
 	defer orm.InitModel()
 	tableName,PKcolumn:=getTableNameAndPKcolumn(rowsSlicePtr)
 	if orm.TableName == "" {
@@ -830,7 +836,7 @@ func (orm *Model) DeleteAll(rowsSlicePtr interface{}) (int64, error) {
 		return 0, nil
 	}
 	for i := 0; i < val.Len(); i++ {
-		results, err := scanSelfColumnIntoMap(val.Index(i).Interface())
+		results, err := scanSelfColumn(val.Index(i).Interface())
 		if err != nil {
 			return 0, err
 		}
@@ -865,7 +871,7 @@ func (orm *Model) DeleteAll(rowsSlicePtr interface{}) (int64, error) {
 	return Affectid, nil
 }
 
-func (orm *Model) DeleteRow() (int64, error) {
+func (orm *model) DeleteRow() (int64, error) {
 	defer orm.InitModel()
 	var condition string
 	if orm.WhereStr != "" {
@@ -897,41 +903,44 @@ func (orm *Model) DeleteRow() (int64, error) {
 /**
 开启事物
  */
-func (orm *Model)Begin()  error {
+func (orm *model)Begin()  error {
 	var err=error(nil)
 	orm.Tx,err=orm.Db.Begin()
 	if err!=nil {
 		return err
 	}
-	beginsession=true
+	orm.beginsession=true
 	return  err
 }
 /*
 提交数据
  */
-func (orm *Model)Commit() error {
+func (orm *model)Commit() error {
 	err:=orm.Tx.Commit()
 	if err!=nil {
 		return err
 	}
-	beginsession=false
+	orm.beginsession=false
 	return nil
 }
 /**
 回滚数据
  */
-func (orm *Model)Rollback() error {
+func (orm *model)Rollback() error {
 	err:=orm.Tx.Rollback()
 	if err!=nil {
 		return err
 	}
-	beginsession=false
+	orm.beginsession=false
 	return nil
+}
+func (orm *model)OnDebug(bol bool){
+	OnDebug=bol
 }
 /**
 初始化对象
  */
-func (orm *Model) InitModel() {
+func (orm *model) InitModel() {
 	orm.TableName = ""
 	orm.LimitStr = 0
 	orm.OffsetStr = 0
@@ -944,5 +953,6 @@ func (orm *Model) InitModel() {
 	orm.GroupByStr = ""
 	orm.HavingStr = ""
 	orm.ParamIteration = 1
+	orm.beginsession=false
 }
 
