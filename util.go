@@ -220,8 +220,8 @@ func getOnePKAndMoreFieldName(obj interface{}) (map[interface{}]interface{},erro
 				FieldNameMap[fieldName]=fieldName
 			}
 		} else {
-			beedbTag := bb.Get("beedb")//获取表中列的标记
-			if beedbTag=="PK" {
+			b2dbTag := bb.Get("b2db")//获取表中列的标记
+			if b2dbTag=="PK" {
 				asTag := bb.Get("as")//获取表字段的别名
 				if asTag!="" {
 					pKFieldMap["PK"]=asTag
@@ -714,8 +714,8 @@ func getOneToMoreConnTerm(output interface{})(string,string){
 	for i := 0; i < dataStructType.NumField(); i++ {
 		field := dataStructType.Field(i)
 		bb := field.Tag
-		beedbTag := bb.Get("beedb")//获取表oneToOne的标记
-		if beedbTag!="" {
+		b2dbTag := bb.Get("b2db")//获取表oneToOne的标记
+		if b2dbTag!="" {
 			columnTag := bb.Get("column")//获取表oneToOne的标记
 			pk=columnTag
 		}
@@ -761,7 +761,7 @@ func  getTableNameAndPKcolumn(output interface{})(string,string){
 		for i := 0; i < sliceElementType.NumField(); i++ {
 			bb := sliceElementType.Field(i).Tag
 			columnTag := bb.Get("column")//获取表中列的标记
-			if bb.Get("beedb") == "PK" || reflect.ValueOf(bb).String() == "PK" {
+			if bb.Get("b2db") == "PK" || reflect.ValueOf(bb).String() == "PK" {
 				tableNameTag := bb.Get("table")//获取表中表的标记
 				tableName=tableNameTag
 				if columnTag == "" {
@@ -776,7 +776,7 @@ func  getTableNameAndPKcolumn(output interface{})(string,string){
 		for i := 0; i < tt.NumField(); i++ {
 			bb := tt.Field(i).Tag
 			columnTag := bb.Get("column")//获取表中列的标记
-			if bb.Get("beedb") == "PK" || reflect.ValueOf(bb).String() == "PK" {
+			if bb.Get("b2db") == "PK" || reflect.ValueOf(bb).String() == "PK" {
 				tableNameTag := bb.Get("table")//获取表中表的标记
 				tableName=tableNameTag
 				if columnTag == "" {
@@ -804,8 +804,8 @@ func getobjTableName(s interface{}) (string,reflect.StructField){
 	for i := 0; i < dataStructType.NumField(); i++ {
 		field = dataStructType.Field(i)
 		bb := field.Tag
-		beedbTag:=bb.Get("beedb")
-		if beedbTag!= ""&&beedbTag=="PK"  {
+		b2dbTag:=bb.Get("b2db")
+		if b2dbTag!= ""&&b2dbTag=="PK"  {
 			tableName=bb.Get("table")
 			break
 		} else {

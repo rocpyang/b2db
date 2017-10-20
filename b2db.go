@@ -103,7 +103,7 @@ func (orm *Model) ScanPK(output interface{}) *Model {
 		sliceElementType := sliceValue.Type().Elem()
 		for i := 0; i < sliceElementType.NumField(); i++ {
 			bb := sliceElementType.Field(i).Tag
-			if bb.Get("beedb") == "PK" || reflect.ValueOf(bb).String() == "PK" {
+			if bb.Get("b2db") == "PK" || reflect.ValueOf(bb).String() == "PK" {
 				orm.PrimaryKey = sliceElementType.Field(i).Name
 			}
 		}
@@ -111,13 +111,12 @@ func (orm *Model) ScanPK(output interface{}) *Model {
 		tt := reflect.TypeOf(reflect.Indirect(reflect.ValueOf(output)).Interface())
 		for i := 0; i < tt.NumField(); i++ {
 			bb := tt.Field(i).Tag
-			if bb.Get("beedb") == "PK" || reflect.ValueOf(bb).String() == "PK" {
+			if bb.Get("b2db") == "PK" || reflect.ValueOf(bb).String() == "PK" {
 				orm.PrimaryKey = tt.Field(i).Name
 			}
 		}
 	}
 	return orm
-
 }
 //The join_operator should be one of INNER, LEFT OUTER, CROSS etc - this will be prepended to JOIN
 func (orm *Model) Join(join_operator, tablename, condition string) *Model {

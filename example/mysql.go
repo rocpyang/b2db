@@ -19,13 +19,13 @@ const (
 /**
 获取DB连接
  */
-func InItOrm() (beeDB b2db.Model) {
+func InItOrm() (b2DB b2db.Model) {
 	db, err := sql.Open("mymysql", dbname+"/"+Username+"/"+PassWord)
 	if err!=nil {
 		log.Println(err)
 		log.Println("db初始化为空")
 	}else {
-		beeDB = b2db.New(db)
+		b2DB = b2db.New(db)
 	}
 	return
 }
@@ -45,7 +45,7 @@ CREATE TABLE `student` (
 ) ENGINE=InnoDB AUTO_INCREMENT=57 DEFAULT CHARSET=utf8;
  */
 type Student struct{
-	SId int `beedb:"PK" table:"student" column:"Id" as:"SId"`
+	SId int `b2db:"PK" table:"student" column:"Id" as:"SId"`
 	Class Class `table:"class"  inline:"true" oneToOne:"classId"`
 	Name string `column:"name"`
 	PassWord string `column:"password"`
@@ -62,7 +62,7 @@ CREATE TABLE `class` (
 ) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8 COMMENT='班级';
  */
 type Class struct {
-	Id int `beedb:"PK"  table:"class" column:"Id" as:"CId"`
+	Id int `b2db:"PK"  table:"class" column:"Id" as:"CId"`
 	Name string `column:"name" as:"Cname"`
 	Students []Student `column:"student" inline:"true" oneToMore:"classId" table:"student"`
 }
@@ -76,7 +76,7 @@ CREATE TABLE `userinfo` (
 );
  */
 type Userinfo struct {
-	Id string `beedb:"PK"  table:"userdeatail" column:"uid" as:"RId"`
+	Id string `b2db:"PK"  table:"userdeatail" column:"uid" as:"RId"`
 	Intro string `column:"intro" as:"Rintro"`
 }
 func main() {
