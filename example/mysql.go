@@ -3,7 +3,6 @@ package main
 import (
 	"database/sql"
 	"fmt"
-	"github.com/astaxie/beedb"
 	_ "github.com/ziutek/mymysql/godrv"
 	"strconv"
 	"time"

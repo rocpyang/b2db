@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"github.com/astaxie/beedb"
 	_ "github.com/mattn/go-adodb"
 	"database/sql"
 	"log"
