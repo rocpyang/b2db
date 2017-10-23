@@ -81,7 +81,8 @@ type Userinfo struct {
 func main() {
 	orm:= InItOrm()
 	b2db.OnDebug = true
-
+	orm.Begin()//开启事物
+	orm.Commit()//提交事物
 
 
 
