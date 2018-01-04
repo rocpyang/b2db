@@ -1,10 +1,3 @@
----
-title: b2db的使用操作
-categories: [go语言]
-tags: [数据库框架,go]
-comments: true
-description: 经过两个星期的制作，自己的第一个数据库框架出世，下来简单描述一下它的使用
----
 
 *　　* b2db是一个dao层的框架，现在网络上有好多golang Dao的框架，比如beegoo.rm、beedb;在使用过程中感觉beegoo.rm太大了，而beedb不支持事物以及一对一，多对多查询。刚开始的的时候无聊更改了beedb的代码，增接了事物这个功能，后来有时间了就重新写了b2db。下面来说b2db的使用吧：
 <!--more-->
